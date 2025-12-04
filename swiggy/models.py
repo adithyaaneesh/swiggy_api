@@ -1,6 +1,8 @@
 from django.db import models
-
+from django.contrib.auth.models import User
 # Create your models here.
+
+
 class Restaurant(models.Model):
 
     CATEGORY_CHOICES = [
@@ -38,3 +40,17 @@ class MenuItem(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.food_type}"
+    
+class Cart(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f"Cart - {self.user.username}"
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
+    menu_item = models.ForeignKey('MenuItem', on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(default=1)
+
+    def __str__(self):
+        return f"{self.menu_item.name} x {self.quantity}"

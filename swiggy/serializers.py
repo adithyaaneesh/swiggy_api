@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Restaurant, MenuItem
+from .models import Restaurant, MenuItem, CartItem
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
@@ -11,3 +11,11 @@ class MenuItemSerializers(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = "__all__"
+
+class CartItemSerializer(serializers.ModelSerializer):
+    menu_item_name = serializers.ReadOnlyField(source='menu_item.name')
+    menu_item_price = serializers.ReadOnlyField(source='menu_item.price')
+
+    class Meta:
+        model = CartItem
+        fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_price', 'quantity']
