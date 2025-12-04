@@ -1,3 +1,28 @@
 from django.db import models
 
 # Create your models here.
+class Restaurant(models.Model):
+    restaurant_name = models.CharField(max_length=100)
+    restaurant_address = models.TextField(max_length=255)
+    rest_phonenum = models.PositiveIntegerField()
+    rest_email = models.EmailField(max_length=100)
+    rating = models.FloatField()
+
+    def __str__(self):
+        return self.restaurant_name
+
+class MenuItem(models.Model):
+    FOOD_TYPE_CHOICES = [
+        ('veg', "Veg"),
+        ('non-veg', "Non-Veg"),
+    ]
+
+    restaurant_name = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="menu_items")
+    name = models.CharField(max_length=200)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    image = models.ImageField(upload_to="menu_images/")
+    is_available = models.BooleanField(default=True)
+    food_type = models.CharField(max_length=10, choices=FOOD_TYPE_CHOICES, default='veg')
+
+    def __str__(self):
+        return f"{self.name} - {self.food_type}"
