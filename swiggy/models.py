@@ -2,11 +2,23 @@ from django.db import models
 
 # Create your models here.
 class Restaurant(models.Model):
+
+    CATEGORY_CHOICES = [
+        ("salad", "Salad"),
+        ("breakfast", "Breakfast"),
+        ("lunch", "Lunch"),
+        ("dinner", "Dinner"),
+        ("snacks", "Snacks"),
+        ("shakes", "Shakes"),
+        ("desert", "Desert"),
+        ("ice-cream", "Ice Cream"),
+    ]
     restaurant_name = models.CharField(max_length=100)
     restaurant_address = models.TextField(max_length=255)
     rest_phonenum = models.PositiveIntegerField()
     rest_email = models.EmailField(max_length=100)
     rating = models.FloatField()
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
 
     def __str__(self):
         return self.restaurant_name

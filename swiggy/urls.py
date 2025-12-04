@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/all_menu', views.update_menu, name='all_menu'),
     path('api/delete_menu', views.delete_menu, name='delete_menu'),
     path('api/search_restaurant', views.search_restaurant, name='search_restaurant'),
+    path('api/menu_item_filter', views.menu_items_filter, name='menu_item_filter'),
 ]
 
 if settings.DEBUG:

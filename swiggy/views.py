@@ -25,6 +25,33 @@ def search_restaurant(request):
         return Response(serializer.data)
     return Response({"message": "No restaurant found matching the search."})
 
+# filter by price, rating and category
+@api_view(['GET'])
+def menu_items_filter(request):
+    items = MenuItem.objects.all()
+
+    # FILTER BY PRICE
+    min_price = request.GET.get('min_price')
+    max_price = request.GET.get('max_price')
+    if min_price:
+        items = items.filter(price__gte=min_price)
+    if max_price:
+        items = items.filter(price__lte=max_price)
+
+    # FILTER BY CATEGORY (Restaurant category)
+    category = request.GET.get('category')
+    if category:
+        items = items.filter(restaurant__category__iexact=category)
+
+    # FILTER BY RATING (Restaurant rating)
+    min_rating = request.GET.get('min_rating')
+    if min_rating:
+        items = items.filter(restaurant__rating__gte=min_rating)
+
+    serializer = MenuItemSerializers(items, many=True)
+    return Response(serializer.data)
+
+
 # restaurant add their menu list 
 @api_view(['POST'])
 def add_menu(request):
