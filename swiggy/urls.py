@@ -5,6 +5,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('api/list_all_restaurants', views.list_all_restaurants, name='list_all_restaurants'),
+    path('api/add_menu', views.add_menu, name='add_menu'),
 ]
 
 if settings.DEBUG:
