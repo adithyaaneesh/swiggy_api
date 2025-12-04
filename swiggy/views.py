@@ -33,3 +33,16 @@ def update_menu(request,menu_id):
         serializer.save()
         return Response(serializer.data)
     return Response(serializer.errors)
+
+# list all menus
+@api_view(['GET'])
+def list_menu(request):
+    menu_items = MenuItem.objects.all()
+    serializer = MenuItemSerializers(menu_items, many=True)
+    return Response(serializer.data)
+
+@api_view(['DELETE'])
+def delete_menu(request, menu_id):
+    menu_item = get_object_or_404(MenuItem, id=menu_id)
+    menu_item.delete()
+    return Response({"message": f"Item {menu_id} deleted successfully!!!"})
