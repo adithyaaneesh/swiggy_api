@@ -13,6 +13,18 @@ def list_all_restaurants(request):
     serializer = RestaurantSerializer(restaurants, many=True)
     return Response(serializer.data)
 
+# search a restaurant by its name
+@api_view(['GET'])
+def search_restaurant(request):
+    restaurant_name = request.GET.get("restaurant_name", "")
+    if not restaurant_name:
+        return Response({"error": "Please provide a valid restaurant name"})
+    restaurant = Restaurant.objects.filter(restaurant_name__icontains=restaurant_name)
+    serializer = RestaurantSerializer(restaurant, many=True)
+    if restaurant.exists():
+        return Response(serializer.data)
+    return Response({"message": "No restaurant found matching the search."})
+
 # restaurant add their menu list 
 @api_view(['POST'])
 def add_menu(request):
