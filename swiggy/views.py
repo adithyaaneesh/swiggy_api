@@ -80,13 +80,14 @@ def list_menu(request):
     serializer = MenuItemSerializers(menu_items, many=True)
     return Response(serializer.data)
 
+# delete menu
 @api_view(['DELETE'])
 def delete_menu(request, menu_id):
     menu_item = get_object_or_404(MenuItem, id=menu_id)
     menu_item.delete()
     return Response({"message": f"Item {menu_id} deleted successfully!!!"})
 
-
+# add to cart
 @api_view(['POST'])
 def add_to_cart(request):
     user = request.user
@@ -110,7 +111,7 @@ def add_to_cart(request):
     serializer = CartItemSerializer(cart_item)
     return Response({"message": "Item added to cart", "cart_item": serializer.data})
 
-
+# remove from cart
 @api_view(['POST'])
 def remove_from_cart(request):
     user = request.user
@@ -123,3 +124,11 @@ def remove_from_cart(request):
 
     cart_item.delete()
     return Response({"message": "Item removed from cart"})
+
+# view cart
+@api_view(['GET'])
+def view_cart(request):
+    cart_items = CartItem.objects.all()
+    serializer = CartItemSerializer(cart_items,many=True)
+    return Response(serializer.data)
+
