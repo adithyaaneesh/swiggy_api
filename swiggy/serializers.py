@@ -15,7 +15,8 @@ class MenuItemSerializers(serializers.ModelSerializer):
 class CartItemSerializer(serializers.ModelSerializer):
     menu_item_name = serializers.ReadOnlyField(source='menu_item.name')
     menu_item_price = serializers.ReadOnlyField(source='menu_item.price')
+    total = serializers.ReadOnlyField()
 
     class Meta:
         model = CartItem
-        fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_price', 'quantity']
+        fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_price', 'quantity', 'total']

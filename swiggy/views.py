@@ -1,8 +1,11 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
-from .models import Restaurant, MenuItem, Cart, CartItem
+from rest_framework.decorators import api_view
+
+from .models import Restaurant, MenuItem, Cart, CartItem, FoodItem, Order, OrderItem
 from .serializers import RestaurantSerializer, MenuItemSerializers, CartItemSerializer
+
+
 # Create your views here.
 
 
@@ -90,45 +93,118 @@ def delete_menu(request, menu_id):
 # add to cart
 @api_view(['POST'])
 def add_to_cart(request):
-    user = request.user
-    # Ensure user has a cart
-    cart, created = Cart.objects.get_or_create(user=user)
+    item_id = request.data.get("item_id")
+    qty = int(request.data.get("quantity", 1))
 
-    menu_item_id = request.data.get('menu_item')
-    quantity = request.data.get('quantity', 1)
+    item = get_object_or_404(FoodItem, id=item_id)
 
-    menu_item = get_object_or_404(MenuItem, id=menu_item_id)
+    cart_item, created = CartItem.objects.get_or_create(
+        user=request.user, item=item,
+        defaults={'quantity': qty}
+    )
 
-    # Check if item already in cart
-    cart_item, created = CartItem.objects.get_or_create(cart=cart, menu_item=menu_item)
     if not created:
-        cart_item.quantity += int(quantity)
-        cart_item.save()
-    else:
-        cart_item.quantity = int(quantity)
+        cart_item.quantity += qty
         cart_item.save()
 
-    serializer = CartItemSerializer(cart_item)
-    return Response({"message": "Item added to cart", "cart_item": serializer.data})
+    return Response({"message": "Item added to cart"})
 
 # remove from cart
 @api_view(['POST'])
 def remove_from_cart(request):
-    user = request.user
-    cart = get_object_or_404(Cart, user=user)
-    menu_item_id = request.data.get('menu_item')
-
-    cart_item = CartItem.objects.filter(cart=cart, menu_item__id=menu_item_id).first()
-    if not cart_item:
-        return Response({"error": "Item not in cart"})
-
+    item_id = request.data.get("item_id")
+    cart_item = get_object_or_404(CartItem, user=request.user, item_id=item_id)
     cart_item.delete()
+
     return Response({"message": "Item removed from cart"})
 
 # view cart
 @api_view(['GET'])
 def view_cart(request):
-    cart_items = CartItem.objects.all()
-    serializer = CartItemSerializer(cart_items,many=True)
-    return Response(serializer.data)
+    cart_items = CartItem.objects.filter(user=request.user)
 
+    total = sum([c.subtotal for c in cart_items])
+
+    data = [{
+        "item": c.item.name,
+        "price": float(c.item.price),
+        "quantity": c.quantity,
+        "subtotal": float(c.subtotal)
+    } for c in cart_items]
+
+    return Response({
+        "items": data,
+        "total": float(total)
+    })
+
+
+@api_view(['POST'])
+def place_order(request):
+    cart_items = CartItem.objects.filter(user=request.user)
+
+    if not cart_items.exists():
+        return Response({"error": "Cart is empty"}, status=400)
+
+    total = sum([c.subtotal for c in cart_items])
+
+    order = Order.objects.create(
+        user=request.user,
+        total_amount=total,
+        status="PLACED"
+    )
+
+    for c in cart_items:
+        OrderItem.objects.create(
+            order=order,
+            item=c.item,
+            quantity=c.quantity,
+            price=c.item.price
+        )
+
+    cart_items.delete()
+
+    return Response({
+        "message": "Order placed successfully",
+        "order_id": order.id,
+        "total": total
+    })
+
+# update order status
+@api_view(['POST'])
+def update_order_status(request, order_id):
+    new_status = request.data.get("status")
+
+    order = get_object_or_404(Order, id=order_id)
+
+    # Allowed workflow
+    WORKFLOW = {
+        "PENDING": "ACCEPTED",
+        "ACCEPTED": "PREPARING",
+        "PREPARING": "OUT_FOR_DELIVERY",
+        "OUT_FOR_DELIVERY": "DELIVERED",
+    }
+
+    current = order.status
+
+    # Validate status
+    if current not in WORKFLOW:
+        return Response({"error": "Invalid current status"}, status=400)
+
+    expected_next = WORKFLOW[current]
+
+    if new_status != expected_next:
+        return Response({
+            "error": "Invalid status update",
+            "allowed_next_status": expected_next
+        }, status=400)
+
+    # Update
+    order.status = new_status
+    order.save()
+
+    return Response({
+        "message": "Order status updated",
+        "order_id": order.id,
+        "previous_status": current,
+        "new_status": new_status
+    })
