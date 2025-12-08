@@ -7,16 +7,19 @@ class RestaurantSerializer(serializers.ModelSerializer):
         model = Restaurant
         fields = "__all__"
 
-class MenuItemSerializers(serializers.ModelSerializer):
+
+class MenuItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = "__all__"
 
+
 class CartItemSerializer(serializers.ModelSerializer):
     menu_item_name = serializers.ReadOnlyField(source='menu_item.name')
     menu_item_price = serializers.ReadOnlyField(source='menu_item.price')
-    total = serializers.ReadOnlyField()
+    subtotal = serializers.ReadOnlyField()
 
     class Meta:
         model = CartItem
-        fields = ['id', 'menu_item', 'menu_item_name', 'menu_item_price', 'quantity', 'total']
+        fields = ['id', 'menu_item', 'menu_item_name',
+                  'menu_item_price', 'quantity', 'subtotal']

@@ -2,8 +2,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 
-from .models import Restaurant, MenuItem, Cart, CartItem, FoodItem, Order, OrderItem
-from .serializers import RestaurantSerializer, MenuItemSerializers, CartItemSerializer
+from .models import Restaurant, MenuItem, Cart, CartItem, Order, OrderItem, User
+from .serializers import MenuItemSerializer, RestaurantSerializer, CartItemSerializer
 
 
 # Create your views here.
@@ -51,55 +51,77 @@ def menu_items_filter(request):
     if min_rating:
         items = items.filter(restaurant__rating__gte=min_rating)
 
-    serializer = MenuItemSerializers(items, many=True)
+    serializer = MenuItemSerializer(items, many=True)
     return Response(serializer.data)
 
 
 # restaurant add their menu list 
 @api_view(['POST'])
 def add_menu(request):
-    is_many = isinstance(request.data, list)
-    serializer = MenuItemSerializers(data=request.data, many=is_many)
+    user = request.user
+    if user.role != "RESTAURANT_OWNER":
+        return Response({"error": "Only restaurant owners can add menus"}, status=403)
+
+    restaurant = Restaurant.objects.filter(owner=user).first()
+
+    data = request.data.copy()
+    data["restaurant"] = restaurant.id
+
+    serializer = MenuItemSerializer(data=data)
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
+
     return Response(serializer.errors)
+
 
 # update the menu list
 @api_view(['PUT', 'PATCH'])
-def update_menu(request,menu_id):
+def update_menu(request, menu_id):
     menu_item = get_object_or_404(MenuItem, id=menu_id)
-    partial_update = request.method == 'PATCH'
-    serializer = MenuItemSerializers(instances = menu_item, data=request.data, partial=partial_update)
+
+    if request.user != menu_item.restaurant.owner:
+        return Response({"error": "You cannot update this menu"}, status=403)
+
+    serializer = MenuItemSerializer(menu_item, data=request.data, partial=True)
+
     if serializer.is_valid():
         serializer.save()
         return Response(serializer.data)
+
     return Response(serializer.errors)
 
 # list all menus
 @api_view(['GET'])
 def list_menu(request):
     menu_items = MenuItem.objects.all()
-    serializer = MenuItemSerializers(menu_items, many=True)
+    serializer = MenuItemSerializer(menu_items, many=True)
     return Response(serializer.data)
 
 # delete menu
 @api_view(['DELETE'])
 def delete_menu(request, menu_id):
     menu_item = get_object_or_404(MenuItem, id=menu_id)
+
+    if request.user != menu_item.restaurant.owner:
+        return Response({"error": "Unauthorized"}, status=403)
+
     menu_item.delete()
-    return Response({"message": f"Item {menu_id} deleted successfully!!!"})
+    return Response({"message": "Menu deleted"})
+
 
 # add to cart
 @api_view(['POST'])
 def add_to_cart(request):
-    item_id = request.data.get("item_id")
+    menu_id = request.data.get("menu_item")
     qty = int(request.data.get("quantity", 1))
 
-    item = get_object_or_404(FoodItem, id=item_id)
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    menu_item = get_object_or_404(MenuItem, id=menu_id)
 
     cart_item, created = CartItem.objects.get_or_create(
-        user=request.user, item=item,
+        cart=cart,
+        menu_item=menu_item,
         defaults={'quantity': qty}
     )
 
@@ -108,6 +130,7 @@ def add_to_cart(request):
         cart_item.save()
 
     return Response({"message": "Item added to cart"})
+
 
 # remove from cart
 @api_view(['POST'])
@@ -137,37 +160,35 @@ def view_cart(request):
         "total": float(total)
     })
 
-
+# place order
 @api_view(['POST'])
 def place_order(request):
-    cart_items = CartItem.objects.filter(user=request.user)
+    cart = Cart.objects.get(user=request.user)
+    items = cart.items.all()
 
-    if not cart_items.exists():
+    if not items.exists():
         return Response({"error": "Cart is empty"}, status=400)
 
-    total = sum([c.subtotal for c in cart_items])
+    total = sum(i.subtotal for i in items)
 
     order = Order.objects.create(
         user=request.user,
         total_amount=total,
-        status="PLACED"
+        status="PENDING"
     )
 
-    for c in cart_items:
+    for item in items:
         OrderItem.objects.create(
             order=order,
-            item=c.item,
-            quantity=c.quantity,
-            price=c.item.price
+            menu_item=item.menu_item,
+            quantity=item.quantity,
+            price=item.menu_item.price
         )
 
-    cart_items.delete()
+    items.delete()
 
-    return Response({
-        "message": "Order placed successfully",
-        "order_id": order.id,
-        "total": total
-    })
+    return Response({"message": "Order placed", "order_id": order.id})
+
 
 # update order status
 @api_view(['POST'])
@@ -208,3 +229,65 @@ def update_order_status(request, order_id):
         "previous_status": current,
         "new_status": new_status
     })
+
+# admin manage users 
+@api_view(['GET'])
+def admin_list_users(request):
+    users = User.objects.all()
+    data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "role": u.role,
+            "is_active": u.is_active,
+        }
+        for u in users
+    ]
+    return Response(data)
+
+# admin list restaurants 
+@api_view(['GET'])
+def admin_list_all_restaurants(request):
+    restaurants = Restaurant.objects.all()
+    serializers = RestaurantSerializer(restaurants, many=True)
+    return Response(serializers.data)
+
+# admin update restaurants
+@api_view(['PUT'])
+def admin_update_restaurants(request,restaurant_id):
+    restaurant = Restaurant.objects.filter(id=restaurant_id).first()
+    if not restaurant:
+        return Response({"error":"Restaurant not found"})
+    serializers = RestaurantSerializer(restaurant,data=request.data)
+
+    if serializers.is_valid():
+        serializers.save()
+        return Response(serializers.data)
+    return Response(serializers.errors)
+
+# admin delete restaurants
+@api_view(['PUT'])
+def admin_delete_restaurants(request,restaurant_id):
+    restaurant = Restaurant.objects.filter(id=restaurant_id).first()
+    if not restaurant:
+        return Response({"error":"Restaurant not found"})
+    restaurant.delete()
+    return Response({"message":"Restaurant deleted successfully"})
+
+# admin list all orders
+@api_view(['GET'])
+def admin_list_orders(request):
+    orders = Order.objects.all().order_by('-created_at')
+
+    data = [
+        {
+            "id": o.id,
+            "user": o.user.username,
+            "total_amount": float(o.total_amount),
+            "status": o.status,
+            "created_at": o.created_at,
+        }
+        for o in orders
+    ]
+    return Response(data)
