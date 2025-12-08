@@ -4,7 +4,8 @@ from rest_framework.decorators import api_view
 from django.db.models import Avg
 from .models import RatingReview, Restaurant, MenuItem, Cart, CartItem, Order, OrderItem, User
 from .serializers import MenuItemSerializer, RatingReviewSerializer, RestaurantSerializer, CartItemSerializer
-
+import paypalrestsdk
+from django.conf import settings
 
 # Create your views here.
 
@@ -387,3 +388,77 @@ def restaurant_reviews(request, restaurant_id):
     serializer = RatingReviewSerializer(reviews, many=True)
     return Response(serializer.data)
 
+# paypal
+paypalrestsdk.configure({
+    "mode": settings.PAYPAL_MODE,
+    "client_id": settings.PAYPAL_CLIENT_ID,
+    "client_secret": settings.PAYPAL_CLIENT_SECRET
+})
+
+# Create Payment API
+@api_view(['POST'])
+def create_paypal_payment(request, order_id):
+    user = request.user
+    order = Order.objects.filter(id=order_id, user=user).first()
+    if not order:
+        return Response({"error": "Order not found"}, status=404)
+
+    if order.status != "PENDING":
+        return Response({"error": f"Cannot pay for order with status {order.status}"}, status=400)
+
+    payment = paypalrestsdk.Payment({
+        "intent": "sale",
+        "payer": {"payment_method": "paypal"},
+        "redirect_urls": {
+            "return_url": f"http://localhost:8000/api/paypal/execute/{order.id}/",
+            "cancel_url": f"http://localhost:8000/api/paypal/cancel/{order.id}/"
+        },
+        "transactions": [{
+            "item_list": {
+                "items": [{
+                    "name": f"Order {order.id}",
+                    "sku": f"order_{order.id}",
+                    "price": str(order.total_amount),
+                    "currency": "USD",
+                    "quantity": 1
+                }]
+            },
+            "amount": {
+                "total": str(order.total_amount),
+                "currency": "USD"
+            },
+            "description": f"Payment for Order {order.id}"
+        }]
+    })
+
+    if payment.create():
+        # Extract approval URL for redirect
+        for link in payment.links:
+            if link.rel == "approval_url":
+                approval_url = str(link.href)
+                return Response({"approval_url": approval_url})
+    else:
+        return Response({"error": payment.error}, status=400)
+    
+
+@api_view(['GET'])
+def execute_paypal_payment(request, order_id):
+    payment_id = request.GET.get('paymentId')
+    payer_id = request.GET.get('PayerID')
+
+    order = Order.objects.filter(id=order_id).first()
+    if not order:
+        return Response({"error": "Order not found"}, status=404)
+
+    payment = paypalrestsdk.Payment.find(payment_id)
+
+    if payment.execute({"payer_id": payer_id}):
+        order.status = "ACCEPTED"  # or "PAID" depending on your workflow
+        order.save()
+        return Response({"message": "Payment successful", "order_id": order.id})
+    else:
+        return Response({"error": payment.error}, status=400)
+    
+@api_view(['GET'])
+def cancel_paypal_payment(request, order_id):
+    return Response({"message": f"Payment for order {order_id} was cancelled."})

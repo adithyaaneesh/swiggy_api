@@ -34,6 +34,12 @@ urlpatterns = [
     path("delivery/accept/<int:order_id>/", views.delivery_accept_order, name="delivery_accept_order"),
     path("delivery/update-status/<int:order_id>/", views.delivery_update_status, name="delivery_update_status"),
 
+    # payment integration
+    path('paypal/create/<int:order_id>/', views.create_paypal_payment, name="create_paypal_payment"),
+    path('paypal/execute/<int:order_id>/', views.execute_paypal_payment, name="execute_paypal_payment"),
+    path('paypal/cancel/<int:order_id>/', views.cancel_paypal_payment, name="cancel_paypal_payment"),
+
+
 
 ]
 
