@@ -291,3 +291,54 @@ def admin_list_orders(request):
         for o in orders
     ]
     return Response(data)
+
+#Accept an order for delivery
+@api_view(['POST'])
+def delivery_accept_order(request, order_id):
+    user = request.user
+
+    # Only delivery partners can accept delivery
+    if user.role != "DELIVERY_PARTNER":
+        return Response({"error": "Only delivery partners can accept orders"}, status=403)
+
+    order = get_object_or_404(Order, id=order_id)
+
+    if order.status != "PREPARING":
+        return Response({
+            "error": "You can accept only orders in PREPARING state",
+            "current_status": order.status
+        }, status=400)
+
+    # Update order status
+    order.status = "OUT_FOR_DELIVERY"
+    order.save()
+
+    return Response({ "message": "Order taken for delivery", "order_id": order.id, "new_status": "OUT_FOR_DELIVERY"})
+
+# Update delivery status
+@api_view(['POST'])
+def delivery_update_status(request, order_id):
+    user = request.user
+
+    # Only delivery partner can update status
+    if user.role != "DELIVERY_PARTNER":
+        return Response({"error": "Only delivery partners can update delivery status"}, status=403)
+
+    order = get_object_or_404(Order, id=order_id)
+    new_status = request.data.get("status")
+
+    if order.status != "OUT_FOR_DELIVERY":
+        return Response({
+            "error": "Order must be OUT_FOR_DELIVERY before marking delivered",
+            "current_status": order.status
+        }, status=400)
+
+    if new_status != "DELIVERED":
+        return Response({
+            "error": "Invalid status. Allowed status: DELIVERED"
+        }, status=400)
+
+    order.status = "DELIVERED"
+    order.save()
+
+    return Response({"message": "Order delivered successfully","order_id": order.id, "new_status": "DELIVERED"})

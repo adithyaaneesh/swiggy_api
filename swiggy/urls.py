@@ -30,6 +30,11 @@ urlpatterns = [
     path('admin/delete_restaurant/<int:restaurant_id>', views.admin_delete_restaurants, name='delete_restaurant'),
     path('admin/orders', views.admin_list_orders, name='all_orders'),
 
+    # DELIVERY PARTNER
+    path("delivery/accept/<int:order_id>/", views.delivery_accept_order, name="delivery_accept_order"),
+    path("delivery/update-status/<int:order_id>/", views.delivery_update_status, name="delivery_update_status"),
+
+
 ]
 
 if settings.DEBUG:
