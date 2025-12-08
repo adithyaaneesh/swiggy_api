@@ -1,9 +1,9 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-
-from .models import Restaurant, MenuItem, Cart, CartItem, Order, OrderItem, User
-from .serializers import MenuItemSerializer, RestaurantSerializer, CartItemSerializer
+from django.db.models import Avg
+from .models import RatingReview, Restaurant, MenuItem, Cart, CartItem, Order, OrderItem, User
+from .serializers import MenuItemSerializer, RatingReviewSerializer, RestaurantSerializer, CartItemSerializer
 
 
 # Create your views here.
@@ -342,3 +342,48 @@ def delivery_update_status(request, order_id):
     order.save()
 
     return Response({"message": "Order delivered successfully","order_id": order.id, "new_status": "DELIVERED"})
+
+#  Add or update rating
+@api_view(['POST'])
+def rate_restaurant(request, restaurant_id):
+    user = request.user
+    rating = request.data.get("rating")
+    comment = request.data.get("comment", "")
+
+    if not rating:
+        return Response({"error": "Rating is required"}, status=400)
+
+    rating = int(rating)
+    if rating < 1 or rating > 5:
+        return Response({"error": "Rating must be between 1 and 5"}, status=400)
+
+    # Create or update review
+    review, created = RatingReview.objects.get_or_create(
+        user=user,
+        restaurant_id=restaurant_id,
+        defaults={'rating': rating, 'comment': comment}
+    )
+
+    if not created:
+        review.rating = rating
+        review.comment = comment
+        review.save()
+        msg = "Review updated"
+    else:
+        msg = "Review added"
+
+    # --- Recalculate average rating for the restaurant ---
+    avg_rating = RatingReview.objects.filter(restaurant_id=restaurant_id).aggregate(avg=Avg('rating'))['avg']
+    
+    restaurant = Restaurant.objects.get(id=restaurant_id)
+    restaurant.rating = round(avg_rating, 1)  # Round to 1 decimal
+    restaurant.save()
+
+    return Response({ "message": msg, "rating": review.rating, "comment": review.comment, "average_rating": restaurant.rating })
+
+@api_view(['GET'])
+def restaurant_reviews(request, restaurant_id):
+    reviews = RatingReview.objects.filter(restaurant_id=restaurant_id).order_by('-created_at')
+    serializer = RatingReviewSerializer(reviews, many=True)
+    return Response(serializer.data)
+

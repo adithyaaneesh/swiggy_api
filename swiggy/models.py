@@ -32,7 +32,7 @@ class Restaurant(models.Model):
     restaurant_address = models.TextField(max_length=255)
     rest_phonenum = models.PositiveIntegerField()
     rest_email = models.EmailField(max_length=100)
-    rating = models.FloatField()
+    rating = models.FloatField(default=0)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
 
     def __str__(self):
@@ -93,3 +93,16 @@ class OrderItem(models.Model):
     menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
+
+class RatingReview(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    restaurant = models.ForeignKey("Restaurant", on_delete=models.CASCADE, related_name="reviews")
+    rating = models.IntegerField()  # 1–5 stars
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'restaurant')  # one review per user
+
+    def __str__(self):
+        return f"{self.user} → {self.restaurant} : {self.rating}"
