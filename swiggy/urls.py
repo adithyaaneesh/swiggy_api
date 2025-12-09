@@ -8,7 +8,9 @@ urlpatterns = [
     # path('api/restaurants', views.list_all_restaurants, name='all_restaurants'),
     path('api/search_restaurant', views.search_restaurant, name='search_restaurants'),
 
-    # RESTAURANT MENU
+    # RESTAURANT 
+    
+    path('api/add_restaurant', views.add_restaurant, name='add_restaurant'),
     path('api/add_menu', views.add_menu, name='add_menu'),
     path('api/update_menu/<int:menu_id>', views.update_menu, name='update_menu'),
     path('api/all_menu', views.list_menu, name='all_menu'),
