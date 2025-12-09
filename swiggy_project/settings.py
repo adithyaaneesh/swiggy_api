@@ -133,3 +133,13 @@ AUTH_USER_MODEL = 'swiggy.User'
 PAYPAL_CLIENT_ID = "AUVSv3dAsw80x35If01-cLCJN8-8W_-v1UM7boUAXrzjEYibAPqMvoCGCQOt8u-faYPeNdsY5KNrvCaQ"
 PAYPAL_CLIENT_SECRET = "EG6HcnWjrm6qJf4rKCNNYt5CKsOigD6KidhkwmdRYqGWQFwcKgStLoKeRsjn0Pogb3VGcVVt0axQsoM6"
 PAYPAL_MODE = "sandbox" 
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}

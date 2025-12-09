@@ -22,7 +22,6 @@ class Restaurant(models.Model):
         ("desert", "Desert"),
         ("ice-cream", "Ice Cream"),
     ]
-
     owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="restaurants")
     restaurant_name = models.CharField(max_length=100)
     restaurant_address = models.TextField(max_length=255)
@@ -39,7 +38,6 @@ class MenuItem(models.Model):
         ('veg', "Veg"),
         ('non-veg', "Non-Veg"),
     ]
-
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name="menu_items")
     name = models.CharField(max_length=200)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -58,7 +56,7 @@ class Cart(models.Model):
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
-    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE)
+    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE,null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
 
     @property
@@ -73,7 +71,6 @@ class Order(models.Model):
         ("OUT_FOR_DELIVERY", "Out for Delivery"),
         ("DELIVERED", "Delivered"),
     ]
-
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="PENDING")
@@ -81,7 +78,7 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
-    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE)
+    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
