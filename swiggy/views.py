@@ -1,17 +1,98 @@
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view,  permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.authtoken.models import Token
 from django.db.models import Avg
 from .models import RatingReview, Restaurant, MenuItem, Cart, CartItem, Order, OrderItem, User
-from .serializers import MenuItemSerializer, RatingReviewSerializer, RestaurantSerializer, CartItemSerializer
+from .serializers import MenuItemSerializer, RatingReviewSerializer, RestaurantSerializer, UserLoginSerializer, UserRegistrationSerializer, UserSerializer
 import paypalrestsdk
 from django.conf import settings
 
-# Create your views here.
+from functools import wraps
+from rest_framework.response import Response
+
+def role_required(allowed_roles):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+
+            if not request.user.is_authenticated:
+                return Response({"error": "Authentication required"}, status=401)
+
+            # SUPERUSER SHOULD ALWAYS HAVE ACCESS
+            if request.user.is_superuser:
+                return func(request, *args, **kwargs)
+
+            # Normal role checking
+            if request.user.role not in allowed_roles:
+                return Response({"error": "Permission Denied"}, status=403)
+
+            return func(request, *args, **kwargs)
+        return wrapper
+    return decorator
+
+
+
+# register
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def register_user(request):
+    serializer = UserSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+
+        # Assign default role if missing
+        if not user.role:
+            user.role = "CUSTOMER"
+            user.save()
+
+        # Create token
+        token, _ = Token.objects.get_or_create(user=user)
+
+        return Response({
+            "message": "User registered successfully",
+            "user": UserSerializer(user).data,
+            "token": token.key
+        })
+    return Response(serializer.errors, status=400)
+
+
+# login
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    serializer = UserLoginSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user = serializer.validated_data["user"]
+
+        # If SUPERUSER → always assign ADMIN role
+        if user.is_superuser:
+            role = "ADMIN"
+        else:
+            role = user.role
+
+        # Issue Authentication Token
+        token, _ = Token.objects.get_or_create(user=user)
+
+        return Response({
+            "message": "Login successful",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": role,
+            },
+            "token": token.key,
+        })
+    
+    return Response(serializer.errors, status=400)
 
 
 # list restaurants
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def list_all_restaurants(request):
     restaurants = Restaurant.objects.all()
     serializer = RestaurantSerializer(restaurants, many=True)
@@ -19,6 +100,7 @@ def list_all_restaurants(request):
 
 # search a restaurant by its name
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def search_restaurant(request):
     restaurant_name = request.GET.get("restaurant_name", "")
     if not restaurant_name:
@@ -31,6 +113,7 @@ def search_restaurant(request):
 
 # filter by price, rating and category
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def menu_items_filter(request):
     items = MenuItem.objects.all()
 
@@ -58,6 +141,7 @@ def menu_items_filter(request):
 
 # restaurant add their menu list 
 @api_view(['POST'])
+@role_required(["RESTAURANT_OWNER"])
 def add_menu(request):
     user = request.user
     if user.role != "RESTAURANT_OWNER":
@@ -78,6 +162,7 @@ def add_menu(request):
 
 # update the menu list
 @api_view(['PUT', 'PATCH'])
+@role_required(["RESTAURANT_OWNER"])
 def update_menu(request, menu_id):
     menu_item = get_object_or_404(MenuItem, id=menu_id)
 
@@ -94,6 +179,7 @@ def update_menu(request, menu_id):
 
 # list all menus
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def list_menu(request):
     menu_items = MenuItem.objects.all()
     serializer = MenuItemSerializer(menu_items, many=True)
@@ -101,6 +187,7 @@ def list_menu(request):
 
 # delete menu
 @api_view(['DELETE'])
+@role_required(["RESTAURANT_OWNER"])
 def delete_menu(request, menu_id):
     menu_item = get_object_or_404(MenuItem, id=menu_id)
 
@@ -113,6 +200,7 @@ def delete_menu(request, menu_id):
 
 # add to cart
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def add_to_cart(request):
     menu_id = request.data.get("menu_item")
     qty = int(request.data.get("quantity", 1))
@@ -135,6 +223,7 @@ def add_to_cart(request):
 
 # remove from cart
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def remove_from_cart(request):
     item_id = request.data.get("item_id")
     cart_item = get_object_or_404(CartItem, user=request.user, item_id=item_id)
@@ -144,6 +233,7 @@ def remove_from_cart(request):
 
 # view cart
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def view_cart(request):
     cart_items = CartItem.objects.filter(user=request.user)
 
@@ -163,6 +253,7 @@ def view_cart(request):
 
 # place order
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def place_order(request):
     cart = Cart.objects.get(user=request.user)
     items = cart.items.all()
@@ -193,6 +284,7 @@ def place_order(request):
 
 # update order status
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def update_order_status(request, order_id):
     new_status = request.data.get("status")
 
@@ -233,6 +325,7 @@ def update_order_status(request, order_id):
 
 # admin manage users 
 @api_view(['GET'])
+@role_required(["ADMIN"])
 def admin_list_users(request):
     users = User.objects.all()
     data = [
@@ -249,6 +342,7 @@ def admin_list_users(request):
 
 # admin list restaurants 
 @api_view(['GET'])
+@role_required(["ADMIN"])
 def admin_list_all_restaurants(request):
     restaurants = Restaurant.objects.all()
     serializers = RestaurantSerializer(restaurants, many=True)
@@ -256,6 +350,7 @@ def admin_list_all_restaurants(request):
 
 # admin update restaurants
 @api_view(['PUT'])
+@role_required(["ADMIN"])
 def admin_update_restaurants(request,restaurant_id):
     restaurant = Restaurant.objects.filter(id=restaurant_id).first()
     if not restaurant:
@@ -269,6 +364,7 @@ def admin_update_restaurants(request,restaurant_id):
 
 # admin delete restaurants
 @api_view(['PUT'])
+@role_required(["ADMIN"])
 def admin_delete_restaurants(request,restaurant_id):
     restaurant = Restaurant.objects.filter(id=restaurant_id).first()
     if not restaurant:
@@ -278,6 +374,7 @@ def admin_delete_restaurants(request,restaurant_id):
 
 # admin list all orders
 @api_view(['GET'])
+@role_required(["ADMIN"])
 def admin_list_orders(request):
     orders = Order.objects.all().order_by('-created_at')
 
@@ -295,6 +392,7 @@ def admin_list_orders(request):
 
 #Accept an order for delivery
 @api_view(['POST'])
+@role_required(["DELIVERY_PARTNER"])
 def delivery_accept_order(request, order_id):
     user = request.user
 
@@ -318,6 +416,7 @@ def delivery_accept_order(request, order_id):
 
 # Update delivery status
 @api_view(['POST'])
+@role_required(["DELIVERY_PARTNER"])
 def delivery_update_status(request, order_id):
     user = request.user
 
@@ -346,6 +445,7 @@ def delivery_update_status(request, order_id):
 
 #  Add or update rating
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def rate_restaurant(request, restaurant_id):
     user = request.user
     rating = request.data.get("rating")
@@ -383,6 +483,7 @@ def rate_restaurant(request, restaurant_id):
     return Response({ "message": msg, "rating": review.rating, "comment": review.comment, "average_rating": restaurant.rating })
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def restaurant_reviews(request, restaurant_id):
     reviews = RatingReview.objects.filter(restaurant_id=restaurant_id).order_by('-created_at')
     serializer = RatingReviewSerializer(reviews, many=True)
@@ -397,6 +498,7 @@ paypalrestsdk.configure({
 
 # Create Payment API
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_paypal_payment(request, order_id):
     user = request.user
     order = Order.objects.filter(id=order_id, user=user).first()
@@ -442,6 +544,7 @@ def create_paypal_payment(request, order_id):
     
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def execute_paypal_payment(request, order_id):
     payment_id = request.GET.get('paymentId')
     payer_id = request.GET.get('PayerID')
@@ -460,5 +563,58 @@ def execute_paypal_payment(request, order_id):
         return Response({"error": payment.error}, status=400)
     
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def cancel_paypal_payment(request, order_id):
-    return Response({"message": f"Payment for order {order_id} was cancelled."})
+    return Response({"message": f"Payment for order {order_id} was cancelled."}) 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile(request):
+    user = request.user
+    
+    # Base user data
+    profile_data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "role": user.role,
+        "phone": user.phone,
+    }
+    if user.is_superuser:
+        profile_data["role"] = "ADMIN"
+
+    # Restaurant Owner → attach restaurant details
+    if user.role == "RESTAURANT_OWNER":
+        restaurant = Restaurant.objects.filter(owner=user).first()
+        if restaurant:
+            profile_data["restaurant"] = {
+                "id": restaurant.id,
+                "restaurant_name": restaurant.restaurant_name,
+                "address": restaurant.restaurant_address,
+                "phone": restaurant.rest_phonenum,
+                "email": restaurant.rest_email,
+                "rating": restaurant.rating,
+                "category": restaurant.category,
+            }
+        else:
+            profile_data["restaurant"] = None
+
+    # Delivery Partner → attach delivery profile
+    if user.role == "DELIVERY_PARTNER":
+        # You can extend later with delivery stats
+        profile_data["delivery_partner"] = {
+            "assigned_orders": Order.objects.filter(status="OUT_FOR_DELIVERY").count(),
+            "delivered_orders": Order.objects.filter(status="DELIVERED").count(),
+        }
+
+    # Customer → cart details
+    if user.role == "CUSTOMER":
+        cart, _ = Cart.objects.get_or_create(user=user)
+        cart_items = cart.items.all()
+
+        profile_data["cart"] = {
+            "items_count": cart_items.count(),
+            "total": float(sum(item.subtotal for item in cart_items))
+        }
+
+    return Response(profile_data)

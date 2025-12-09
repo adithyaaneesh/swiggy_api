@@ -8,7 +8,7 @@ urlpatterns = [
     # path('api/restaurants', views.list_all_restaurants, name='all_restaurants'),
     path('api/search_restaurant', views.search_restaurant, name='search_restaurants'),
 
-    # MENU
+    # RESTAURANT MENU
     path('api/add_menu', views.add_menu, name='add_menu'),
     path('api/update_menu/<int:menu_id>', views.update_menu, name='update_menu'),
     path('api/all_menu', views.list_menu, name='all_menu'),
@@ -24,21 +24,24 @@ urlpatterns = [
     path('api/update_order_status/<int:order_id>', views.update_order_status, name='update_order_status'),
 
     # ADMIN
-    path('admin/users', views.admin_list_users, name='all_users'),
-    path('admin/restaurants', views.admin_list_all_restaurants, name='all_restaurants'),
-    path('admin/update_restaurant/<int:restaurant_id>', views.admin_update_restaurants, name='update_restaurant'),
-    path('admin/delete_restaurant/<int:restaurant_id>', views.admin_delete_restaurants, name='delete_restaurant'),
-    path('admin/orders', views.admin_list_orders, name='all_orders'),
+    path('api/admin/users', views.admin_list_users, name='all_users'),
+    path('api/admin/restaurants', views.admin_list_all_restaurants, name='all_restaurants'),
+    path('api/admin/update_restaurant/<int:restaurant_id>', views.admin_update_restaurants, name='update_restaurant'),
+    path('api/admin/delete_restaurant/<int:restaurant_id>', views.admin_delete_restaurants, name='delete_restaurant'),
+    path('api/admin/orders', views.admin_list_orders, name='all_orders'),
 
     # DELIVERY PARTNER
-    path("delivery/accept/<int:order_id>/", views.delivery_accept_order, name="delivery_accept_order"),
-    path("delivery/update-status/<int:order_id>/", views.delivery_update_status, name="delivery_update_status"),
+    path("api/delivery/accept/<int:order_id>/", views.delivery_accept_order, name="delivery_accept_order"),
+    path("api/delivery/update-status/<int:order_id>/", views.delivery_update_status, name="delivery_update_status"),
 
     # payment integration
-    path('paypal/create/<int:order_id>/', views.create_paypal_payment, name="create_paypal_payment"),
-    path('paypal/execute/<int:order_id>/', views.execute_paypal_payment, name="execute_paypal_payment"),
-    path('paypal/cancel/<int:order_id>/', views.cancel_paypal_payment, name="cancel_paypal_payment"),
+    path('api/paypal/create/<int:order_id>/', views.create_paypal_payment, name="create_paypal_payment"),
+    path('api/paypal/execute/<int:order_id>/', views.execute_paypal_payment, name="execute_paypal_payment"),
+    path('api/paypal/cancel/<int:order_id>/', views.cancel_paypal_payment, name="cancel_paypal_payment"),
 
+    path("api/register/", views.register_user, name="register"),
+    path("api/login/", views.login_user, name="login"),
+    path("api/profile/", views.profile, name="profile"),
 
 
 ]
